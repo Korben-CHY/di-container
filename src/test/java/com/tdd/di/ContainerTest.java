@@ -1,12 +1,18 @@
 package com.tdd.di;
 
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ContainerTest {
 
     interface Component {
+    }
+
+    static public class ComponentWithDefaultConstructor implements Component {
+        public ComponentWithDefaultConstructor() {
+        }
     }
 
     @Nested
@@ -19,7 +25,7 @@ public class ContainerTest {
             };
 
             context.bind(Component.class, component);
-            Assertions.assertSame(component, context.get(Component.class));
+            assertSame(component, context.get(Component.class));
         }
         // TODO abstract class
         // TODO interface
@@ -27,6 +33,16 @@ public class ContainerTest {
         @Nested
         public class ConstructorInjection {
             // TODO No arguments constructor
+            @Test
+            public void should_bind_type_to_a_class_with_default_constructor() {
+                Context context = new Context();
+
+                context.bind(Component.class, ComponentWithDefaultConstructor.class);
+                Component component = context.get(Component.class);
+                assertNotNull(component);
+                assertTrue(component instanceof ComponentWithDefaultConstructor);
+            }
+
             // TODO with dependencies
             // TODO A -> B -> C
         }
