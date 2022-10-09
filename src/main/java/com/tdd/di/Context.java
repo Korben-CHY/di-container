@@ -20,6 +20,20 @@ public class Context {
     }
 
     public <Type, Implementation extends Type> void bind(Class<Type> type, Class<Implementation> implement) {
+        long defaultConstructorCount = Arrays.stream(implement.getConstructors())
+                .filter(c -> c.getParameters().length == 0)
+                .count();
+
+        long injectConstructorCount = Arrays.stream(implement.getConstructors())
+                .filter(c -> c.isAnnotationPresent(Inject.class))
+                .count();
+        if (injectConstructorCount > 1) {
+            throw new IllegalComponentException();
+        }
+        if (injectConstructorCount == 0 && defaultConstructorCount == 0) {
+            throw new IllegalComponentException();
+        }
+
         providers.put(type, () -> {
             try {
                 Constructor<Implementation> constructor = getInjectConstructor(implement);

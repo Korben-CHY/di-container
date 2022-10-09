@@ -72,6 +72,21 @@ public class ContainerTest {
 
                 assertEquals(dependencyStr, ((DependencyWithInjectConstructor) dependency).getDependency());
             }
+
+            @Test
+            public void should_throw_exception_if_multi_inject_constructor_provided() {
+                assertThrows(IllegalComponentException.class, () -> {
+                    context.bind(Component.class, ComponentWithMultiInjectConstructor.class);
+                });
+            }
+
+            @Test
+            public void should_throw_exception_if_no_inject_constructor_nor_default_constructor_provided() {
+                assertThrows(IllegalComponentException.class, () -> {
+                    context.bind(Component.class, ComponentWithNoDefaultConstructorAndNoInjectConstructor.class);
+                });
+
+            }
         }
 
         @Nested
@@ -119,6 +134,22 @@ class ComponentWithDependencyConstructor implements Component {
 
     public Dependency getDependency() {
         return dependency;
+    }
+}
+
+class ComponentWithMultiInjectConstructor implements Component {
+    @Inject
+    public ComponentWithMultiInjectConstructor(String name) {
+    }
+
+    @Inject
+    public ComponentWithMultiInjectConstructor(int name) {
+    }
+}
+
+class ComponentWithNoDefaultConstructorAndNoInjectConstructor implements Component {
+
+    public ComponentWithNoDefaultConstructorAndNoInjectConstructor(String name) {
     }
 }
 
