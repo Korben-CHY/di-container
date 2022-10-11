@@ -97,7 +97,9 @@ public class ContainerTest {
             public void should_throw_exception_if_no_dependency_found() {
                 context.bind(Component.class, ComponentWithDependencyConstructor.class);
 
-                assertThrows(DependencyNotFoundException.class, () -> context.get(Component.class));
+                DependencyNotFoundException exception = assertThrows(DependencyNotFoundException.class, () -> context.get(Component.class));
+
+                assertEquals(Dependency.class, exception.getDependency());
             }
 
             @Test
@@ -105,7 +107,11 @@ public class ContainerTest {
                 context.bind(Component.class, ComponentWithDependencyConstructor.class);
                 context.bind(Dependency.class, DependencyWithComponentDependency.class);
 
-                assertThrows(CyclicDependencyException.class, () -> context.get(Component.class));
+                CyclicDependencyException exception = assertThrows(CyclicDependencyException.class, () -> context.get(Component.class));
+
+                assertEquals(exception.getComponent().size(), 2);
+                assertTrue(exception.getComponent().contains(Dependency.class));
+                assertTrue(exception.getComponent().contains(Component.class));
             }
 
             @Test
@@ -114,7 +120,13 @@ public class ContainerTest {
                 context.bind(Dependency.class, DependencyDependOnAnotherDependency.class);
                 context.bind(AnotherDependency.class, AnotherDependencyDependOnComponent.class);
 
-                assertThrows(CyclicDependencyException.class, () -> context.get(Component.class));
+                CyclicDependencyException exception = assertThrows(CyclicDependencyException.class, () -> context.get(Component.class));
+
+                assertEquals(exception.getComponent().size(), 3);
+                assertTrue(exception.getComponent().contains(Dependency.class));
+                assertTrue(exception.getComponent().contains(Component.class));
+                assertTrue(exception.getComponent().contains(AnotherDependency.class));
+
             }
         }
 
