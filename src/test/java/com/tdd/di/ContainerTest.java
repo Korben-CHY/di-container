@@ -99,6 +99,23 @@ public class ContainerTest {
 
                 assertThrows(DependencyNotFoundException.class, () -> context.get(Component.class));
             }
+
+            @Test
+            public void should_throw_exception_if_cyclic_dependency_found() {
+                context.bind(Component.class, ComponentWithDependencyConstructor.class);
+                context.bind(Dependency.class, DependencyWithComponentDependency.class);
+
+                assertThrows(CyclicDependencyException.class, () -> context.get(Component.class));
+            }
+
+            @Test
+            public void should_throw_exception_if_transitive_cyclic_dependency_found() {
+                context.bind(Component.class, ComponentWithDependencyConstructor.class);
+                context.bind(Dependency.class, DependencyDependOnAnotherDependency.class);
+                context.bind(AnotherDependency.class, AnotherDependencyDependOnComponent.class);
+
+                assertThrows(CyclicDependencyException.class, () -> context.get(Component.class));
+            }
         }
 
         @Nested
@@ -129,6 +146,9 @@ interface Component {
 }
 
 interface Dependency {
+}
+
+interface AnotherDependency {
 }
 
 class ComponentWithDefaultConstructor implements Component {
@@ -175,5 +195,40 @@ class DependencyWithInjectConstructor implements Dependency {
 
     public String getDependency() {
         return dependency;
+    }
+}
+
+class DependencyWithComponentDependency implements Dependency {
+    private Component component;
+
+    @Inject
+    public DependencyWithComponentDependency(Component component) {
+        this.component = component;
+    }
+
+    public Component getComponent() {
+        return component;
+    }
+}
+
+class DependencyDependOnAnotherDependency implements Dependency {
+    private AnotherDependency anotherDependency;
+
+    @Inject
+    public DependencyDependOnAnotherDependency(AnotherDependency anotherDependency) {
+        this.anotherDependency = anotherDependency;
+    }
+}
+
+class AnotherDependencyDependOnComponent implements AnotherDependency {
+    private Component component;
+
+    @Inject
+    public AnotherDependencyDependOnComponent(Component component) {
+        this.component = component;
+    }
+
+    public Component getComponent() {
+        return component;
     }
 }
