@@ -4,9 +4,9 @@ import jakarta.inject.Inject;
 import jakarta.inject.Provider;
 
 import java.lang.reflect.Constructor;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.lang.reflect.InvocationTargetException;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class Context {
     Map<Class<?>, Provider<?>> providers = new HashMap<>();
@@ -15,48 +15,44 @@ public class Context {
         providers.put(type, () -> instance);
     }
 
-    public <Type> Type get(Class<Type> type) {
-        return (Type) providers.get(type).get();
-    }
-
     public <Type, Implementation extends Type> void bind(Class<Type> type, Class<Implementation> implement) {
-        long defaultConstructorCount = Arrays.stream(implement.getConstructors())
-                .filter(c -> c.getParameters().length == 0)
-                .count();
-
-        long injectConstructorCount = Arrays.stream(implement.getConstructors())
-                .filter(c -> c.isAnnotationPresent(Inject.class))
-                .count();
-        if (injectConstructorCount > 1) {
-            throw new IllegalComponentException();
-        }
-        if (injectConstructorCount == 0 && defaultConstructorCount == 0) {
-            throw new IllegalComponentException();
-        }
-
+        Constructor<Implementation> constructor = getInjectConstructor(implement);
         providers.put(type, () -> {
             try {
-                Constructor<Implementation> constructor = getInjectConstructor(implement);
                 Object[] dependencies = Arrays.stream(constructor.getParameters())
-                        .map(p -> get(p.getType()))
+                        .map(p -> get(p.getType()).orElseThrow(DependencyNotFoundException::new))
                         .toArray();
                 return constructor.newInstance(dependencies);
-            } catch (Exception e) {
+            } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
         });
     }
 
     private <Type, Implementation extends Type> Constructor<Implementation> getInjectConstructor(Class<Implementation> implement) {
-        return (Constructor<Implementation>) Arrays.stream(implement.getConstructors())
+        List<Constructor<?>> injectConstructors = Arrays.stream(implement.getConstructors())
                 .filter(c -> c.isAnnotationPresent(Inject.class))
+                .collect(Collectors.toList());
+
+        if (injectConstructors.size() > 1) {
+            throw new IllegalComponentException();
+        }
+
+        return (Constructor<Implementation>) injectConstructors
+                .stream()
                 .findFirst()
                 .orElseGet(() -> {
                     try {
                         return implement.getConstructor();
                     } catch (NoSuchMethodException e) {
-                        throw new RuntimeException();
+                        throw new IllegalComponentException();
                     }
                 });
+    }
+
+    public <Type> Optional<Type> get(Class<Type> type) {
+        Provider<?> provider = providers.get(type);
+        return (Optional<Type>) Optional.ofNullable(provider).map(p -> p.get());
+
     }
 }
