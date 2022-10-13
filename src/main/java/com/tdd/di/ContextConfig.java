@@ -10,29 +10,28 @@ import java.util.stream.Collectors;
 
 public class ContextConfig {
     Map<Class<?>, ComponentProvider<?>> providers = new HashMap<>();
-    Map<Class<?>, List<Class<?>>> dependencies = new HashMap<>();
 
     public <Type> void bind(Class<Type> type, Type instance) {
-        providers.put(type, context -> instance);
-        dependencies.put(type, List.of());
+        providers.put(type, new ComponentProvider<>() {
+            @Override
+            public Object get(Context context) {
+                return instance;
+            }
+
+            @Override
+            public List<Class<?>> getDependencies() {
+                return List.of();
+            }
+        });
     }
 
     public <Type, Implementation extends Type> void bind(Class<Type> type, Class<Implementation> implement) {
         Constructor<Implementation> constructor = getInjectConstructor(implement);
-        providers.put(type, new ConstructorInjectionProvider<>(type, constructor));
-        dependencies.put(type, Arrays.stream(constructor.getParameters()).map(Parameter::getType).collect(Collectors.toList()));
+        providers.put(type, new ConstructorInjectionProvider<>(constructor));
     }
 
     public Context getContext() {
-        for (Class<?> component : dependencies.keySet()) {
-            for (Class<?> dependency : dependencies.get(component)) {
-                if (!providers.containsKey(dependency)) {
-                    throw new DependencyNotFoundException(dependency);
-                }
-
-            }
-        }
-
+        providers.keySet().forEach(component -> checkDependencies(component, new Stack<>()));
 
         return new Context() {
             @Override
@@ -41,6 +40,23 @@ public class ContextConfig {
                 return (Optional<Type>) Optional.ofNullable(provider).map(p -> p.get(this));
             }
         };
+    }
+
+    private void checkDependencies(Class<?> component, Stack<Class<?>> visiting) {
+        for (Class<?> dependency : providers.get(component).getDependencies()) {
+            if (!providers.containsKey(dependency)) {
+                throw new DependencyNotFoundException(dependency);
+            }
+
+            if (visiting.contains(dependency)) {
+                throw new CyclicDependencyException(visiting);
+            }
+            visiting.push(dependency);
+
+            checkDependencies(dependency, visiting);
+
+            visiting.pop();
+        }
     }
 
     private <Type, Implementation extends Type> Constructor<Implementation> getInjectConstructor(Class<Implementation> implement) {
@@ -66,33 +82,30 @@ public class ContextConfig {
 
     class ConstructorInjectionProvider<Type> implements ComponentProvider {
         private Constructor<Type> constructor;
-        private Class<?> component;
-        private boolean isConstructing;
+        private final List<Class<?>> dependencies;
 
-        public ConstructorInjectionProvider(Class<?> component, Constructor<Type> constructor) {
-            this.component = component;
+        public ConstructorInjectionProvider(Constructor<Type> constructor) {
             this.constructor = constructor;
+
+            dependencies = Arrays.stream(constructor.getParameters())
+                    .map(Parameter::getType).collect(Collectors.toList());
         }
 
         @Override
         public Type get(Context context) {
-            if (isConstructing) {
-                throw new CyclicDependencyException(this.component);
-            }
-
             try {
-                isConstructing = true;
                 Object[] dependencies = Arrays.stream(constructor.getParameters())
                         .map(p -> getContext().get(p.getType()).get())
                         .toArray();
                 return constructor.newInstance(dependencies);
-            } catch (CyclicDependencyException e) {
-                throw new CyclicDependencyException(this.component, e);
             } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
                 throw new RuntimeException(e);
-            } finally {
-                isConstructing = false;
             }
+        }
+
+        @Override
+        public List<Class<?>> getDependencies() {
+            return dependencies;
         }
 
     }
