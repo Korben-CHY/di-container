@@ -1,10 +1,6 @@
 package com.tdd.di;
 
-import jakarta.inject.Inject;
-
-import java.lang.reflect.Constructor;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class ContextConfig {
     Map<Class<?>, ComponentProvider<?>> providers = new HashMap<>();
@@ -42,11 +38,11 @@ public class ContextConfig {
     private void checkDependencies(Class<?> component, Stack<Class<?>> visiting) {
         for (Class<?> dependency : providers.get(component).getDependencies()) {
             if (!providers.containsKey(dependency)) {
-                throw new DependencyNotFoundException(dependency);
+                throw new DependencyNotFoundException(component, dependency);
             }
 
             if (visiting.contains(dependency)) {
-                throw new CyclicDependencyException(visiting);
+                throw new CyclicDependenciesFoundException(visiting);
             }
             visiting.push(dependency);
 
